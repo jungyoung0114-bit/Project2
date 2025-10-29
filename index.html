@@ -12,43 +12,97 @@ body {
   padding-top: 50px;
   overflow-x: hidden;
 }
-#title { font-size:1.5em; font-weight:600; margin-bottom:20px; letter-spacing:1px; }
-#output { margin-top:40px; position:relative; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; }
-.morse-group { display:inline-flex; align-items:center; gap:8px; transition: transform 0.4s ease; position:relative; transform-origin:center; }
-.dot, .dash { display:inline-block; animation:wave 1.6s ease-in-out infinite; }
-.dot { width:10px; height:10px; border-radius:50%; animation-delay:calc(var(--i)*0.05s); }
-.dash { width:30px; height:6px; border-radius:3px; animation-delay:calc(var(--i)*0.05s); }
-.dot.big { width:18px; height:18px; }
-.dash.big { width:45px; height:10px; }
-@keyframes wave { 0%,100%{transform:translateY(0);opacity:1;} 25%{transform:translateY(-6px);opacity:0.9;} 50%{transform:translateY(3px);opacity:1;} 75%{transform:translateY(-4px);opacity:0.9;} }
-.fade-in { animation:fadeIn 0.5s ease forwards; }
-@keyframes fadeIn { from{opacity:0;transform:scale(0.8);} to{opacity:1;transform:scale(1);} }
-.space { width:30px; height:1px; }
+#title {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+#output {
+  margin-top: 40px;
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* 🔄 그룹 전체를 시계방향으로 90도 회전 */
+.morse-group {
+  display: inline-flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.4s ease;
+  position: relative;
+  transform-origin: bottom center;
+  transform: rotate(90deg);
+}
+
+/* 내부 요소는 반시계 방향 회전 제거 */
+.dot, .dash {
+  display: inline-block;
+  animation: wave 1.6s ease-in-out infinite; /* 원하는 경우 유지 */
+  /* transform: rotate(-90deg); <- 이 줄 제거 */
+}
+
+/* dot */
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation-delay: calc(var(--i) * 0.05s);
+}
+
+/* dash */
+.dash {
+  width: 6px;   /* 세로 막대 폭 */
+  height: 30px; /* 세로 막대 길이 */
+  border-radius: 3px;
+  animation-delay: calc(var(--i) * 0.05s);
+}
+
+
+.dot.big { width: 18px; height: 18px; }
+.dash.big { width: 10px; height: 45px; }
+
+@keyframes wave {
+  0%, 100% { transform: translateY(0) rotate(-90deg); opacity: 1; }
+  25% { transform: translateY(-6px) rotate(-90deg); opacity: 0.9; }
+  50% { transform: translateY(3px) rotate(-90deg); opacity: 1; }
+  75% { transform: translateY(-4px) rotate(-90deg); opacity: 0.9; }
+}
+
+.fade-in { animation: fadeIn 0.5s ease forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+
+.space { width: 30px; height: 1px; }
 </style>
 </head>
 <body>
 <p id="title">Type letters to create <strong>Morse code art!</strong></p>
 <div id="output"></div>
-<script>
-const outputEl=document.getElementById("output");
 
-const morse={
+<script>
+const outputEl = document.getElementById("output");
+
+const morse = {
 A:"·−",B:"−···",C:"−·−·",D:"−··",E:"·",
 F:"··−·",G:"−−·",H:"····",I:"··",J:"·−−−",
 K:"−·−",L:"·−··",M:"−−",N:"−·",O:"−−−",
 P:"·−−·",Q:"−−·−",R:"·−·",S:"···",T:"−",
 U:"··−",V:"···−",W:"·−−",X:"−··−",Y:"−·−−",Z:"−−··"
 };
-const colors=["#ef4444","#facc15","#22c55e","#3b82f6","#000000"];
+const colors = ["#ef4444","#facc15","#22c55e","#3b82f6","#000000"];
 
-const firstRow="ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ";
-const secondRow="ㅁㄴㅇㄹㅎㅗㅓㅏㅣ";
-const thirdRow="ㅋㅌㅊㅍㅠㅜㅡ";
+const firstRow = "ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ";
+const secondRow = "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ";
+const thirdRow = "ㅋㅌㅊㅍㅠㅜㅡ";
 
-let lastGroup=null;
-let holdInterval=null;
+let lastGroup = null;
+let holdInterval = null;
 
-// Web Audio API
+// 🔊 전자음 (Web Audio API)
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playBeep(){
   const oscillator = audioCtx.createOscillator();
@@ -58,66 +112,68 @@ function playBeep(){
   gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
   oscillator.connect(gainNode).connect(audioCtx.destination);
   oscillator.start();
-  oscillator.stop(audioCtx.currentTime + 0.1); // 0.1초
+  oscillator.stop(audioCtx.currentTime + 0.1);
 }
 
 function randomColor(){ return colors[Math.floor(Math.random()*colors.length)]; }
 
 function createMorse(letter,isUpper){
-  const group=document.createElement("div");
-  group.className="morse-group fade-in";
-  const code=morse[letter];
-  const color=randomColor();
-  let i=0;
+  const group = document.createElement("div");
+  group.className = "morse-group fade-in";
+  const code = morse[letter];
+  const color = randomColor();
+  let i = 0;
   for(const symbol of code){
-    const el=document.createElement("span");
-    el.className=symbol==="·" ? (isUpper ? "dot big fade-in":"dot fade-in") : (isUpper ? "dash big fade-in":"dash fade-in");
-    el.style.setProperty("--i",i++);
-    el.style.backgroundColor=color;
+    const el = document.createElement("span");
+    el.className = symbol==="·"
+      ? (isUpper ? "dot big fade-in":"dot fade-in")
+      : (isUpper ? "dash big fade-in":"dash fade-in");
+    el.style.setProperty("--i", i++);
+    el.style.backgroundColor = color;
     group.appendChild(el);
   }
   outputEl.appendChild(group);
-  lastGroup=group;
+  lastGroup = group;
 }
 
 function addSpace(){
-  const space=document.createElement("div");
-  space.className="space";
+  const space = document.createElement("div");
+  space.className = "space";
   outputEl.appendChild(space);
-  lastGroup=null;
+  lastGroup = null;
 }
 
 function applyHoldEffect(key){
   if(firstRow.includes(key)){
     holdInterval=setInterval(()=>{
-      const dots=Array.from(document.querySelectorAll(".dot"));
+      const dots = Array.from(document.querySelectorAll(".dot"));
       if(dots.length){
-        const dot=dots[Math.floor(Math.random()*dots.length)];
-        let size=parseFloat(dot.style.width)||dot.offsetWidth;
-        size+=6;
-        dot.style.width=size+"px";
-        dot.style.height=size+"px";
+        const dot = dots[Math.floor(Math.random()*dots.length)];
+        let size = parseFloat(dot.style.width) || dot.offsetWidth;
+        size += 6;
+        dot.style.width = size + "px";
+        dot.style.height = size + "px";
       }
     },50);
   } else if(secondRow.includes(key)){
     holdInterval=setInterval(()=>{
-      const dashes=Array.from(document.querySelectorAll(".dash"));
+      const dashes = Array.from(document.querySelectorAll(".dash"));
       if(dashes.length){
-        const dash=dashes[Math.floor(Math.random()*dashes.length)];
-        let width=parseFloat(dash.style.width)||dash.offsetWidth;
-        width+=10;
-        dash.style.width=width+"px";
+        const dash = dashes[Math.floor(Math.random()*dashes.length)];
+        let width = parseFloat(dash.style.width) || dash.offsetWidth;
+        width += 10;
+        dash.style.width = width + "px";
       }
     },50);
   } else if(thirdRow.includes(key)){
     holdInterval=setInterval(()=>{
-      const dashes=Array.from(document.querySelectorAll(".dash"));
+      const dashes = Array.from(document.querySelectorAll(".dash"));
       if(dashes.length){
-        const dash=dashes[Math.floor(Math.random()*dashes.length)];
-        const w=dash.offsetWidth;
-        dash.style.height=w/2+"px";
-        dash.style.borderRadius="50% / 100%";
-        dash.style.transition="all 0.3s ease";
+        const dash = dashes[Math.floor(Math.random()*dashes.length)];
+        const w = dash.offsetWidth;
+        dash.style.height = w/2 + "px";
+        dash.style.borderRadius = "50% / 100%";
+        dash.style.transition = "all 0.3s ease";
       }
     },50);
   }
@@ -125,47 +181,35 @@ function applyHoldEffect(key){
 
 document.addEventListener("keydown",(event)=>{
   playBeep(); // 키 누를 때 전자음
-
-  const key=event.key;
-  const upper=key.toUpperCase();
+  const key = event.key;
+  const upper = key.toUpperCase();
   if(holdInterval) return;
 
   if(morse[upper]){
-    const isUpper=/^[A-Z]$/.test(key)&&key===upper;
+    const isUpper = /^[A-Z]$/.test(key) && key === upper;
     createMorse(upper,isUpper);
   }
 
-  if(key==="Backspace"&&outputEl.lastChild){
+  if(key === "Backspace" && outputEl.lastChild){
     outputEl.removeChild(outputEl.lastChild);
-    const children=Array.from(outputEl.children);
-    lastGroup=children.length?children[children.length-1]:null;
-    if(lastGroup && lastGroup.classList.contains("space")) lastGroup=null;
+    const children = Array.from(outputEl.children);
+    lastGroup = children.length ? children[children.length-1] : null;
+    if(lastGroup && lastGroup.classList.contains("space")) lastGroup = null;
   }
 
-  if(key===" ") addSpace();
+  if(key === " ") addSpace();
 
-  if(firstRow.includes(key)||secondRow.includes(key)||thirdRow.includes(key)){
+  if(firstRow.includes(key) || secondRow.includes(key) || thirdRow.includes(key)){
     applyHoldEffect(key);
   }
 });
 
-document.addEventListener("keyup",(event)=>{
+document.addEventListener("keyup",()=>{
   if(holdInterval){
     clearInterval(holdInterval);
-    holdInterval=null;
+    holdInterval = null;
   }
 });
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
