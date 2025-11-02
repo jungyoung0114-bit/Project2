@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Morse code art</title>
+<title>Morse code art with sounds</title>
 <style>
 body {
   font-family: Futura, "Trebuchet MS", Arial, sans-serif;
@@ -11,12 +11,19 @@ body {
   text-align: center;
   padding-top: 50px;
   overflow-x: hidden;
+  position: relative;
+  transition: background-color 0.5s ease;
 }
 #title {
   font-size: 1.5em;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   letter-spacing: 1px;
+}
+#subtitle {
+  font-size: 1em;
+  color: #555;
+  margin-bottom: 30px;
 }
 #output {
   margin-top: 40px;
@@ -27,7 +34,6 @@ body {
   gap: 20px;
 }
 
-/* 🔄 그룹 전체를 시계방향으로 90도 회전 */
 .morse-group {
   display: inline-flex;
   flex-direction: column-reverse;
@@ -39,48 +45,55 @@ body {
   transform: rotate(90deg);
 }
 
-/* 내부 요소는 반시계 방향 회전 제거 */
 .dot, .dash {
   display: inline-block;
-  animation: wave 1.6s ease-in-out infinite; /* 원하는 경우 유지 */
-  /* transform: rotate(-90deg); <- 이 줄 제거 */
+  animation: wave 1.6s ease-in-out infinite;
 }
 
-/* dot */
 .dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   animation-delay: calc(var(--i) * 0.05s);
 }
-
-/* dash */
 .dash {
-  width: 6px;   /* 세로 막대 폭 */
-  height: 30px; /* 세로 막대 길이 */
+  width: 6px;
+  height: 30px;
   border-radius: 3px;
   animation-delay: calc(var(--i) * 0.05s);
 }
-
 
 .dot.big { width: 18px; height: 18px; }
 .dash.big { width: 10px; height: 45px; }
 
 @keyframes wave {
-  0%, 100% { transform: translateY(0) rotate(-90deg); opacity: 1; }
-  25% { transform: translateY(-6px) rotate(-90deg); opacity: 0.9; }
-  50% { transform: translateY(3px) rotate(-90deg); opacity: 1; }
-  75% { transform: translateY(-4px) rotate(-90deg); opacity: 0.9; }
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  25% { transform: translateY(-6px); opacity: 0.9; }
+  50% { transform: translateY(3px); opacity: 1; }
+  75% { transform: translateY(-4px); opacity: 0.9; }
 }
 
 .fade-in { animation: fadeIn 0.5s ease forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
 
 .space { width: 30px; height: 1px; }
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
 </style>
 </head>
 <body>
 <p id="title">Type letters to create <strong>Morse code art!</strong></p>
+<p id="subtitle">Morse code acts as a bridge between written characters and audible signals.</p>
 <div id="output"></div>
 
 <script>
@@ -93,35 +106,24 @@ K:"−·−",L:"·−··",M:"−−",N:"−·",O:"−−−",
 P:"·−−·",Q:"−−·−",R:"·−·",S:"···",T:"−",
 U:"··−",V:"···−",W:"·−−",X:"−··−",Y:"−·−−",Z:"−−··"
 };
-const colors = ["#ef4444","#facc15","#22c55e","#3b82f6","#000000"];
-
-const firstRow = "ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ";
-const secondRow = "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ";
-const thirdRow = "ㅋㅌㅊㅍㅠㅜㅡ";
 
 let lastGroup = null;
-let holdInterval = null;
 
-// 🔊 전자음 (Web Audio API)
+// 🎹 Web Audio API
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playBeep(){
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  oscillator.type = 'square';
-  oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
-  gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-  oscillator.connect(gainNode).connect(audioCtx.destination);
-  oscillator.start();
-  oscillator.stop(audioCtx.currentTime + 0.1);
-}
 
-function randomColor(){ return colors[Math.floor(Math.random()*colors.length)]; }
+// 🔹 색상
+const morseColors = ["#ef4444","#facc15","#22c55e","#3b82f6","#000000"];
+const bgColors = ["#FFA500","#800080","#FF69B4","#A0522D","#ADFF2F","#87CEEB"]; // 주황, 보라, 핑크, 갈색, 연두, 하늘
 
+function randomColor(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// 🔹 모스코드 생성
 function createMorse(letter,isUpper){
   const group = document.createElement("div");
   group.className = "morse-group fade-in";
   const code = morse[letter];
-  const color = randomColor();
+  const color = randomColor(morseColors);
   let i = 0;
   for(const symbol of code){
     const el = document.createElement("span");
@@ -143,72 +145,120 @@ function addSpace(){
   lastGroup = null;
 }
 
-function applyHoldEffect(key){
-  if(firstRow.includes(key)){
-    holdInterval=setInterval(()=>{
-      const dots = Array.from(document.querySelectorAll(".dot"));
-      if(dots.length){
-        const dot = dots[Math.floor(Math.random()*dots.length)];
-        let size = parseFloat(dot.style.width) || dot.offsetWidth;
-        size += 6;
-        dot.style.width = size + "px";
-        dot.style.height = size + "px";
-      }
-    },50);
-  } else if(secondRow.includes(key)){
-    holdInterval=setInterval(()=>{
-      const dashes = Array.from(document.querySelectorAll(".dash"));
-      if(dashes.length){
-        const dash = dashes[Math.floor(Math.random()*dashes.length)];
-        let width = parseFloat(dash.style.width) || dash.offsetWidth;
-        width += 10;
-        dash.style.width = width + "px";
-      }
-    },50);
-  } else if(thirdRow.includes(key)){
-    holdInterval=setInterval(()=>{
-      const dashes = Array.from(document.querySelectorAll(".dash"));
-      if(dashes.length){
-        const dash = dashes[Math.floor(Math.random()*dashes.length)];
-        const w = dash.offsetWidth;
-        dash.style.height = w/2 + "px";
-        dash.style.borderRadius = "50% / 100%";
-        dash.style.transition = "all 0.3s ease";
-      }
-    },50);
-  }
+// 🔹 피아노 소리 (알파벳)
+function playPianoNote(){
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  const freq = 261.63 * Math.pow(2, Math.floor(Math.random()*24)/12); // C4~C6
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// 🔹 종소리 (숫자) - 울림 추가
+function playBellSound(){
+  const baseFreq = 600 + Math.random()*200;
+  const harmonics = [1, 1.5, 2, 2.5];
+  harmonics.forEach((ratio, idx) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(baseFreq * ratio, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.25 / (idx+1), audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 1.2);
+  });
+}
+
+// 🔹 원형 파동
+function createRipple(x, y){
+  const ripple = document.createElement("div");
+  ripple.className = "ripple";
+  const size = 10 + Math.random()*20;
+  ripple.style.width = ripple.style.height = `${size}px`;
+  ripple.style.left = `${x - size/2}px`;
+  ripple.style.top = `${y - size/2}px`;
+  ripple.style.border = `2px solid ${randomColor(morseColors)}`;
+  const scale = 4 + Math.random()*3;
+  const duration = 0.6 + Math.random()*0.6;
+  ripple.style.transition = `transform ${duration}s ease-out, opacity ${duration}s ease-out`;
+  ripple.style.transform = "scale(0)";
+  ripple.style.opacity = "0.8";
+  document.body.appendChild(ripple);
+  requestAnimationFrame(()=>{
+    ripple.style.transform = `scale(${scale})`;
+    ripple.style.opacity = "0";
+  });
+  setTimeout(()=> ripple.remove(), duration*1000);
+}
+
+// 🔹 한글키 음표
+function createNoteAtRandomPosition(){
+  const note = document.createElement("div");
+  note.textContent = "🎵";
+  note.className = "note";
+  note.style.fontSize = `${20 + Math.random() * 20}px`;
+  note.style.left = `${Math.random() * (window.innerWidth - 30)}px`;
+  note.style.top = `${Math.random() * (window.innerHeight - 30)}px`;
+  note.style.opacity = "1";
+  note.style.transition = "transform 1s ease-out, opacity 1s ease-out";
+  document.body.appendChild(note);
+  requestAnimationFrame(()=>{
+    note.style.transform = `translateY(-40px) scale(1.5)`;
+    note.style.opacity = "0";
+  });
+  setTimeout(()=> note.remove(), 1000);
 }
 
 document.addEventListener("keydown",(event)=>{
-  playBeep(); // 키 누를 때 전자음
   const key = event.key;
   const upper = key.toUpperCase();
-  if(holdInterval) return;
 
+  // 🔹 한글 키 감지
+  if(/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(key)){
+    createNoteAtRandomPosition();
+    return;
+  }
+
+  // 🔹 알파벳
   if(morse[upper]){
     const isUpper = /^[A-Z]$/.test(key) && key === upper;
     createMorse(upper,isUpper);
+    playPianoNote();
+    return;
   }
 
+  // 🔹 Backspace
   if(key === "Backspace" && outputEl.lastChild){
     outputEl.removeChild(outputEl.lastChild);
     const children = Array.from(outputEl.children);
     lastGroup = children.length ? children[children.length-1] : null;
     if(lastGroup && lastGroup.classList.contains("space")) lastGroup = null;
+    return;
   }
 
-  if(key === " ") addSpace();
+  // 🔹 Space
+  if(key === " "){ addSpace(); return; }
 
-  if(firstRow.includes(key) || secondRow.includes(key) || thirdRow.includes(key)){
-    applyHoldEffect(key);
-  }
-});
+  // 🔹 Shift 제외
+  if(key === "Shift") return;
 
-document.addEventListener("keyup",()=>{
-  if(holdInterval){
-    clearInterval(holdInterval);
-    holdInterval = null;
+  // 🔹 숫자키 → 종소리 + 파동
+  if(/[0-9]/.test(key)){
+    playBellSound();
+    const x = Math.random() * window.innerWidth;
+    const y = Math.random() * window.innerHeight;
+    createRipple(x, y);
+    return;
   }
+
+  // 🔹 기타 키 → 배경색 랜덤
+  document.body.style.backgroundColor = randomColor(bgColors);
 });
 </script>
 </body>
